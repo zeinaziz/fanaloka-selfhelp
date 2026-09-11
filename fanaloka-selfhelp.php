@@ -3,7 +3,7 @@
  * Plugin Name:       Fanaloka Self-Help Assistant
  * Plugin URI:        https://github.com/zeinaziz/fanaloka-selfhelp
  * Description:       Asisten swalayan di wp-admin: deteksi kondisi teknis website dan jawab pertanyaan umum lewat pencocokan kata kunci ke basis panduan — tanpa API AI berbayar.
- * Version:            1.0.2
+ * Version:            1.1.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Fanaloka
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'FSH_VERSION', '1.0.2' );
+define( 'FSH_VERSION', '1.1.0' );
 define( 'FSH_PLUGIN_FILE', __FILE__ );
 define( 'FSH_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSH_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +31,19 @@ define( 'FSH_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 require_once FSH_PLUGIN_DIR . 'includes/class-autoloader.php';
 Autoloader::register();
 
+register_activation_hook( __FILE__, __NAMESPACE__ . '\\fsh_activate' );
+
+/**
+ * Seed the editable knowledge base with the built-in starter articles on
+ * first activation, so "Kelola Panduan" opens with something to edit
+ * instead of an empty list.
+ *
+ * @return void
+ */
+function fsh_activate(): void {
+	KnowledgeBase::maybe_seed_defaults();
+}
+
 /**
  * Boot the plugin.
  *
@@ -38,6 +51,10 @@ Autoloader::register();
  */
 function fsh_init(): void {
 	load_plugin_textdomain( 'fanaloka-selfhelp', false, dirname( FSH_PLUGIN_BASENAME ) . '/languages' );
+
+	// Covers sites where the plugin was already active before this option
+	// existed (activation hook only fires on a fresh activate).
+	KnowledgeBase::maybe_seed_defaults();
 
 	if ( is_admin() ) {
 		( new \Fanaloka\SelfHelp\Admin\Admin() )->init();

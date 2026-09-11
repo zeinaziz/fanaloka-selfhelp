@@ -1,9 +1,10 @@
 .fsh-wrap {
-	max-width: 640px;
+	max-width: 900px;
 }
 
 .fsh-subtitle {
 	color: #646970;
+	max-width: 640px;
 }
 
 .fsh-info-panel-standalone {

@@ -24,6 +24,13 @@ class Admin {
 	private string $hook_suffix = '';
 
 	/**
+	 * Hook slug of the "Kelola Panduan" (knowledge base) page.
+	 *
+	 * @var string
+	 */
+	private string $kb_hook_suffix = '';
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -36,7 +43,8 @@ class Admin {
 	}
 
 	/**
-	 * Register the admin menu page (technical snapshot / info page).
+	 * Register the admin menu page (technical snapshot / info page) and the
+	 * "Kelola Panduan" knowledge base CRUD submenu.
 	 *
 	 * @return void
 	 */
@@ -50,16 +58,29 @@ class Admin {
 			'dashicons-format-chat',
 			58
 		);
+
+		$kb_page = new KBPage();
+
+		$this->kb_hook_suffix = add_submenu_page(
+			'fanaloka-selfhelp',
+			__( 'Kelola Panduan', 'fanaloka-selfhelp' ),
+			__( 'Kelola Panduan', 'fanaloka-selfhelp' ),
+			'manage_options',
+			'fanaloka-selfhelp-kb',
+			array( $kb_page, 'render' )
+		);
+
+		add_action( 'load-' . $this->kb_hook_suffix, array( $kb_page, 'handle_actions' ) );
 	}
 
 	/**
-	 * Enqueue CSS for the dedicated info page only.
+	 * Enqueue CSS for our own admin pages (info page + KB manager).
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
 	 */
 	public function enqueue_page_assets( string $hook ): void {
-		if ( $hook !== $this->hook_suffix ) {
+		if ( $hook !== $this->hook_suffix && $hook !== $this->kb_hook_suffix ) {
 			return;
 		}
 

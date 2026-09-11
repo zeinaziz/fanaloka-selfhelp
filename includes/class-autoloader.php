@@ -28,6 +28,7 @@ class Autoloader {
 		'Fanaloka\\SelfHelp\\REST\\RESTController'       => 'includes/class-rest-controller.php',
 		'Fanaloka\\SelfHelp\\Admin\\Admin'               => 'admin/class-admin.php',
 		'Fanaloka\\SelfHelp\\Admin\\AssistantPage'       => 'admin/class-assistant-page.php',
+		'Fanaloka\\SelfHelp\\Admin\\KBPage'              => 'admin/class-kb-page.php',
 	);
 
 	/**

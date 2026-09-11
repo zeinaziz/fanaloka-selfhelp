@@ -21,11 +21,101 @@ if ( ! defined( 'ABSPATH' ) ) {
 class KnowledgeBase {
 
 	/**
-	 * Get all articles.
+	 * wp_options key storing the editable article list. Absent/empty means
+	 * "use the built-in defaults" — see articles().
+	 */
+	private const OPTION_KEY = 'fsh_kb_articles';
+
+	/**
+	 * Get all articles: whatever is stored in the option, or the built-in
+	 * defaults if nothing has been saved yet (fresh install).
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	public static function articles(): array {
+		$stored = get_option( self::OPTION_KEY );
+
+		return is_array( $stored ) ? $stored : self::defaults();
+	}
+
+	/**
+	 * Get a single article by id.
+	 *
+	 * @param string $id Article id.
+	 * @return array<string,mixed>|null
+	 */
+	public static function get( string $id ): ?array {
+		foreach ( self::articles() as $article ) {
+			if ( $article['id'] === $id ) {
+				return $article;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Create or update an article. Matches by 'id'; appends if not found.
+	 *
+	 * @param array<string,mixed> $article Article data (id, title, keywords, tags, steps).
+	 * @return void
+	 */
+	public static function upsert( array $article ): void {
+		$articles = self::articles();
+		$found    = false;
+
+		foreach ( $articles as $i => $existing ) {
+			if ( $existing['id'] === $article['id'] ) {
+				$articles[ $i ] = $article;
+				$found          = true;
+				break;
+			}
+		}
+
+		if ( ! $found ) {
+			$articles[] = $article;
+		}
+
+		update_option( self::OPTION_KEY, $articles );
+	}
+
+	/**
+	 * Delete an article by id.
+	 *
+	 * @param string $id Article id.
+	 * @return void
+	 */
+	public static function delete( string $id ): void {
+		$articles = array_values(
+			array_filter(
+				self::articles(),
+				static function ( $article ) use ( $id ) {
+					return $article['id'] !== $id;
+				}
+			)
+		);
+
+		update_option( self::OPTION_KEY, $articles );
+	}
+
+	/**
+	 * Seed the option with the built-in defaults, but only if nothing has
+	 * been saved yet — called on plugin activation. Safe to call repeatedly.
+	 *
+	 * @return void
+	 */
+	public static function maybe_seed_defaults(): void {
+		if ( false === get_option( self::OPTION_KEY, false ) ) {
+			update_option( self::OPTION_KEY, self::defaults() );
+		}
+	}
+
+	/**
+	 * Built-in starter articles, used only until the admin saves their own.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function defaults(): array {
 		return array(
 			array(
 				'id'       => 'wp-edit-page',
