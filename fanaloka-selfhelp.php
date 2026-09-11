@@ -52,10 +52,6 @@ function fsh_activate(): void {
 function fsh_init(): void {
 	load_plugin_textdomain( 'fanaloka-selfhelp', false, dirname( FSH_PLUGIN_BASENAME ) . '/languages' );
 
-	// Covers sites where the plugin was already active before this option
-	// existed (activation hook only fires on a fresh activate).
-	KnowledgeBase::maybe_seed_defaults();
-
 	if ( is_admin() ) {
 		( new \Fanaloka\SelfHelp\Admin\Admin() )->init();
 	}
@@ -63,3 +59,16 @@ function fsh_init(): void {
 	( new REST\RESTController() )->init();
 }
 add_action( 'plugins_loaded', __NAMESPACE__ . '\\fsh_init' );
+
+/**
+ * Covers sites where the plugin was already active before this option
+ * existed (activation hook only fires on a fresh activate). Deferred to
+ * 'init' — calling KnowledgeBase this early on 'plugins_loaded' triggers
+ * WP 6.7's "translation loaded too early" notice (defaults() uses __()).
+ *
+ * @return void
+ */
+function fsh_maybe_seed_kb(): void {
+	KnowledgeBase::maybe_seed_defaults();
+}
+add_action( 'init', __NAMESPACE__ . '\\fsh_maybe_seed_kb' );
