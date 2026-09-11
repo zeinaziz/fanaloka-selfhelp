@@ -24,6 +24,7 @@ class Autoloader {
 	private const CLASS_MAP = array(
 		'Fanaloka\\SelfHelp\\Detector'                  => 'includes/class-detector.php',
 		'Fanaloka\\SelfHelp\\KnowledgeBase'              => 'includes/class-knowledge-base.php',
+		'Fanaloka\\SelfHelp\\SiteIndexer'                => 'includes/class-site-indexer.php',
 		'Fanaloka\\SelfHelp\\Matcher'                    => 'includes/class-matcher.php',
 		'Fanaloka\\SelfHelp\\REST\\RESTController'       => 'includes/class-rest-controller.php',
 		'Fanaloka\\SelfHelp\\Admin\\Admin'               => 'admin/class-admin.php',

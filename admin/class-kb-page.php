@@ -9,6 +9,7 @@
 namespace Fanaloka\SelfHelp\Admin;
 
 use Fanaloka\SelfHelp\KnowledgeBase;
+use Fanaloka\SelfHelp\SiteIndexer;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -44,6 +45,23 @@ class KBPage {
 			wp_safe_redirect( remove_query_arg( array( 'action', 'id', '_wpnonce' ) ) );
 			exit;
 		}
+
+		if ( isset( $_GET['action'] ) && 'index' === $_GET['action'] ) {
+			check_admin_referer( 'fsh_kb_index' );
+			$result = SiteIndexer::run();
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'fsh_indexed' => 1,
+						'added'       => $result['added'],
+						'updated'     => $result['updated'],
+						'removed'     => $result['removed'],
+					),
+					remove_query_arg( array( 'action', '_wpnonce' ) )
+				)
+			);
+			exit;
+		}
 	}
 
 	/**
@@ -70,7 +88,8 @@ class KBPage {
 		}
 
 		$existing_id = isset( $_POST['article_id'] ) ? sanitize_text_field( wp_unslash( $_POST['article_id'] ) ) : '';
-		$id          = '' !== $existing_id ? $existing_id : $this->unique_id( $title );
+		$existing    = '' !== $existing_id ? KnowledgeBase::get( $existing_id ) : null;
+		$id          = $existing ? $existing_id : $this->unique_id( $title );
 
 		KnowledgeBase::upsert(
 			array(
@@ -79,6 +98,10 @@ class KBPage {
 				'keywords' => $keywords,
 				'tags'     => array_values( $tags ),
 				'steps'    => $steps,
+				'source'   => $existing['source'] ?? 'manual',
+				// Any admin-saved edit to a builtin/auto article protects it
+				// from SiteIndexer's next run — see SiteIndexer::run().
+				'edited'   => (bool) $existing,
 			)
 		);
 
@@ -146,11 +169,43 @@ class KBPage {
 	private function render_list(): void {
 		$articles  = KnowledgeBase::articles();
 		$add_url   = add_query_arg( array( 'view' => 'edit' ) );
+		$index_url = wp_nonce_url( add_query_arg( array( 'action' => 'index' ) ), 'fsh_kb_index' );
+
+		$source_labels = array(
+			'builtin' => __( 'Bawaan', 'fanaloka-selfhelp' ),
+			'auto'    => __( 'Hasil Index', 'fanaloka-selfhelp' ),
+			'manual'  => __( 'Manual', 'fanaloka-selfhelp' ),
+		);
 		?>
 		<p class="fsh-subtitle">
 			<?php esc_html_e( 'Artikel di sini dipakai Asisten Bantuan untuk menjawab pertanyaan. Ubah kapan saja tanpa perlu edit kode.', 'fanaloka-selfhelp' ); ?>
 		</p>
-		<p><a href="<?php echo esc_url( $add_url ); ?>" class="button button-primary"><?php esc_html_e( '+ Tambah Panduan', 'fanaloka-selfhelp' ); ?></a></p>
+
+		<?php if ( isset( $_GET['fsh_indexed'] ) ) : ?>
+			<div class="notice notice-success is-dismissible">
+				<p>
+					<?php
+					printf(
+						/* translators: 1: added, 2: updated, 3: removed */
+						esc_html__( 'Index selesai — %1$d panduan ditambahkan, %2$d diperbarui, %3$d dihapus (karena plugin-nya tidak aktif di website ini).', 'fanaloka-selfhelp' ),
+						(int) ( $_GET['added'] ?? 0 ),
+						(int) ( $_GET['updated'] ?? 0 ),
+						(int) ( $_GET['removed'] ?? 0 )
+					);
+					?>
+				</p>
+			</div>
+		<?php endif; ?>
+
+		<p>
+			<a href="<?php echo esc_url( $add_url ); ?>" class="button button-primary"><?php esc_html_e( '+ Tambah Panduan', 'fanaloka-selfhelp' ); ?></a>
+			<a href="<?php echo esc_url( $index_url ); ?>" class="button fsh-index-link" data-confirm="<?php esc_attr_e( 'Index ulang berdasarkan plugin & konten yang terpasang di website ini? Panduan bawaan untuk plugin yang tidak aktif akan dihapus (kecuali yang sudah kamu edit).', 'fanaloka-selfhelp' ); ?>">
+				<?php esc_html_e( '⟳ Index Website Ini', 'fanaloka-selfhelp' ); ?>
+			</a>
+		</p>
+		<p class="description" style="max-width:640px;">
+			<?php esc_html_e( 'Index memindai plugin aktif dan tipe konten khusus di website ini, lalu menyesuaikan daftar panduan: menghapus panduan plugin yang tidak terpasang dan menambahkan panduan untuk konten yang memang ada. Panduan yang sudah kamu edit sendiri tidak akan diutak-atik.', 'fanaloka-selfhelp' ); ?>
+		</p>
 
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
@@ -158,22 +213,30 @@ class KBPage {
 					<th><?php esc_html_e( 'Judul', 'fanaloka-selfhelp' ); ?></th>
 					<th><?php esc_html_e( 'Kata Kunci', 'fanaloka-selfhelp' ); ?></th>
 					<th><?php esc_html_e( 'Tag', 'fanaloka-selfhelp' ); ?></th>
+					<th style="width:110px;"><?php esc_html_e( 'Sumber', 'fanaloka-selfhelp' ); ?></th>
 					<th style="width:140px;"><?php esc_html_e( 'Aksi', 'fanaloka-selfhelp' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php if ( empty( $articles ) ) : ?>
-					<tr><td colspan="4"><?php esc_html_e( 'Belum ada panduan.', 'fanaloka-selfhelp' ); ?></td></tr>
+					<tr><td colspan="5"><?php esc_html_e( 'Belum ada panduan.', 'fanaloka-selfhelp' ); ?></td></tr>
 				<?php endif; ?>
 				<?php foreach ( $articles as $article ) : ?>
 					<?php
 					$edit_url   = add_query_arg( array( 'view' => 'edit', 'id' => $article['id'] ) );
 					$delete_url = wp_nonce_url( add_query_arg( array( 'action' => 'delete', 'id' => $article['id'] ) ), 'fsh_kb_delete_' . $article['id'] );
+					$source     = $source_labels[ $article['source'] ] ?? $article['source'];
 					?>
 					<tr>
 						<td><strong><?php echo esc_html( $article['title'] ); ?></strong></td>
 						<td><?php echo esc_html( implode( ', ', array_slice( $article['keywords'], 0, 4 ) ) ); ?><?php echo count( $article['keywords'] ) > 4 ? esc_html__( ', ...', 'fanaloka-selfhelp' ) : ''; ?></td>
 						<td><?php echo $article['tags'] ? esc_html( implode( ', ', $article['tags'] ) ) : '—'; ?></td>
+						<td>
+							<?php echo esc_html( $source ); ?>
+							<?php if ( ! empty( $article['edited'] ) && 'manual' !== $article['source'] ) : ?>
+								<span class="fsh-badge fsh-badge-warn" title="<?php esc_attr_e( 'Sudah kamu edit, jadi dilindungi dari Index Website', 'fanaloka-selfhelp' ); ?>">✎</span>
+							<?php endif; ?>
+						</td>
 						<td>
 							<a href="<?php echo esc_url( $edit_url ); ?>"><?php esc_html_e( 'Edit', 'fanaloka-selfhelp' ); ?></a>
 							|
@@ -184,7 +247,7 @@ class KBPage {
 			</tbody>
 		</table>
 		<script>
-		document.querySelectorAll( '.fsh-delete-link' ).forEach( function ( link ) {
+		document.querySelectorAll( '.fsh-delete-link, .fsh-index-link' ).forEach( function ( link ) {
 			link.addEventListener( 'click', function ( e ) {
 				if ( ! window.confirm( link.getAttribute( 'data-confirm' ) ) ) {
 					e.preventDefault();

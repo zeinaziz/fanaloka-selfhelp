@@ -3,7 +3,7 @@
  * Plugin Name:       Fanaloka Self-Help Assistant
  * Plugin URI:        https://github.com/zeinaziz/fanaloka-selfhelp
  * Description:       Asisten swalayan di wp-admin: deteksi kondisi teknis website dan jawab pertanyaan umum lewat pencocokan kata kunci ke basis panduan — tanpa API AI berbayar.
- * Version:            1.1.0
+ * Version:            1.2.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Fanaloka
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'FSH_VERSION', '1.1.0' );
+define( 'FSH_VERSION', '1.2.0' );
 define( 'FSH_PLUGIN_FILE', __FILE__ );
 define( 'FSH_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FSH_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
