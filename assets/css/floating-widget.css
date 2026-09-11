@@ -52,6 +52,10 @@
 	overflow: hidden;
 }
 
+.fsh-widget-panel[hidden] {
+	display: none;
+}
+
 .fsh-widget-header {
 	background: #2271b1;
 	color: #fff;
