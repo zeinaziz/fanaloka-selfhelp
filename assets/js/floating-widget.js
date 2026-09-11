@@ -1,10 +1,12 @@
 /**
  * Fanaloka Self-Help Assistant — floating chat widget.
  *
- * Available on every wp-admin screen. Messages live only in this page's
- * DOM for as long as the panel stays open; nothing is written to
- * localStorage/sessionStorage/a database, and the panel resets empty
- * every time it's reopened. No history is ever persisted, by design.
+ * Available on every wp-admin screen. The conversation survives normal
+ * wp-admin page navigation (kept in sessionStorage, scoped to this browser
+ * tab) so switching screens doesn't lose it — but nothing is written to a
+ * database, and clicking the close (×) button wipes it for good. Closing
+ * the browser tab also clears it, since sessionStorage doesn't outlive
+ * the tab. No server-side chat history exists in this plugin, by design.
  */
 ( function () {
 	'use strict';
@@ -12,6 +14,8 @@
 	if ( typeof fshData === 'undefined' ) {
 		return;
 	}
+
+	var STORAGE_KEY = 'fshChatState';
 
 	var widget   = document.getElementById( 'fsh-widget' );
 	var bubble   = document.getElementById( 'fsh-widget-bubble' );
@@ -27,16 +31,49 @@
 
 	input.placeholder = fshData.i18n.placeholder;
 
-	function appendMessage( text, role ) {
-		var el = document.createElement( 'div' );
-		el.className = 'fsh-widget-msg fsh-widget-msg-' + role;
-		el.textContent = text;
-		messages.appendChild( el );
-		messages.scrollTop = messages.scrollHeight;
-		return el;
+	function loadState() {
+		try {
+			var raw = sessionStorage.getItem( STORAGE_KEY );
+			return raw ? JSON.parse( raw ) : { open: false, log: [] };
+		} catch ( err ) {
+			return { open: false, log: [] };
+		}
 	}
 
-	function appendAnswer( data ) {
+	function saveState( state ) {
+		try {
+			sessionStorage.setItem( STORAGE_KEY, JSON.stringify( state ) );
+		} catch ( err ) {
+			// sessionStorage unavailable (private mode/blocked) — chat still
+			// works for the current page, it just won't survive navigation.
+		}
+	}
+
+	function clearState() {
+		try {
+			sessionStorage.removeItem( STORAGE_KEY );
+		} catch ( err ) {
+			// Nothing to clean up if it never saved in the first place.
+		}
+	}
+
+	var state = loadState();
+
+	function renderUserMessage( text ) {
+		var el = document.createElement( 'div' );
+		el.className = 'fsh-widget-msg fsh-widget-msg-user';
+		el.textContent = text;
+		messages.appendChild( el );
+	}
+
+	function renderBotText( text ) {
+		var el = document.createElement( 'div' );
+		el.className = 'fsh-widget-msg fsh-widget-msg-bot';
+		el.textContent = text;
+		messages.appendChild( el );
+	}
+
+	function renderBotAnswer( data ) {
 		var el = document.createElement( 'div' );
 		el.className = 'fsh-widget-msg fsh-widget-msg-bot';
 
@@ -66,15 +103,34 @@
 		}
 
 		messages.appendChild( el );
+	}
+
+	function renderEntry( entry ) {
+		if ( 'user' === entry.role ) {
+			renderUserMessage( entry.text );
+		} else if ( 'bot-answer' === entry.role ) {
+			renderBotAnswer( entry.data );
+		} else {
+			renderBotText( entry.text );
+		}
+	}
+
+	function pushEntry( entry ) {
+		state.log.push( entry );
+		saveState( state );
+		renderEntry( entry );
 		messages.scrollTop = messages.scrollHeight;
 	}
 
 	function openPanel() {
 		widget.classList.add( 'is-open' );
 		panel.hidden = false;
+		state.open = true;
 
-		if ( ! messages.childElementCount ) {
-			appendMessage( fshData.i18n.greeting, 'bot' );
+		if ( ! state.log.length ) {
+			pushEntry( { role: 'bot', text: fshData.i18n.greeting } );
+		} else {
+			saveState( state );
 		}
 
 		input.focus();
@@ -83,6 +139,9 @@
 	function closePanel() {
 		widget.classList.remove( 'is-open' );
 		panel.hidden = true;
+		messages.innerHTML = '';
+		state = { open: false, log: [] };
+		clearState();
 	}
 
 	bubble.addEventListener( 'click', openPanel );
@@ -102,11 +161,15 @@
 			return;
 		}
 
-		appendMessage( question, 'user' );
+		pushEntry( { role: 'user', text: question } );
 		input.value = '';
 		input.disabled = true;
 
-		var thinking = appendMessage( fshData.i18n.thinking, 'bot' );
+		var thinking = document.createElement( 'div' );
+		thinking.className = 'fsh-widget-msg fsh-widget-msg-bot';
+		thinking.textContent = fshData.i18n.thinking;
+		messages.appendChild( thinking );
+		messages.scrollTop = messages.scrollHeight;
 
 		fetch( fshData.restUrl + '/ask', {
 			method: 'POST',
@@ -121,15 +184,23 @@
 			} )
 			.then( function ( data ) {
 				thinking.remove();
-				appendAnswer( data );
+				pushEntry( { role: 'bot-answer', data: data } );
 			} )
 			.catch( function () {
 				thinking.remove();
-				appendMessage( 'Terjadi kesalahan, coba lagi.', 'bot' );
+				pushEntry( { role: 'bot', text: 'Terjadi kesalahan, coba lagi.' } );
 			} )
 			.finally( function () {
 				input.disabled = false;
 				input.focus();
 			} );
 	} );
+
+	// Restore an in-progress conversation after normal wp-admin page navigation.
+	if ( state.open && state.log.length ) {
+		widget.classList.add( 'is-open' );
+		panel.hidden = false;
+		state.log.forEach( renderEntry );
+		messages.scrollTop = messages.scrollHeight;
+	}
 } )();
