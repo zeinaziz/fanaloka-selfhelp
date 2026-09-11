@@ -68,10 +68,52 @@ class KnowledgeBase {
 	 * @return array<string,mixed>
 	 */
 	private static function normalize( array $article ): array {
-		$article['source'] = $article['source'] ?? 'manual';
+		// Missing 'source' entirely (pre-1.2.0 data), or persisted as the
+		// normalize() fallback 'manual' by an upsert() that ran before this
+		// migration existed — in both cases, an id matching a known builtin
+		// is proof it's actually a builtin, misclassified.
+		$looks_unclassified = ! array_key_exists( 'source', $article )
+			|| ( 'manual' === $article['source'] && empty( $article['edited'] ) );
+
+		if ( $looks_unclassified ) {
+			$default = self::find_default( $article['id'] );
+
+			if ( $default ) {
+				// Saved before 'source' existed, but matches a known builtin
+				// id: classify as builtin, and only mark it 'edited' (i.e.
+				// protected from SiteIndexer) if its content has actually
+				// diverged from the shipped default.
+				$article['source'] = 'builtin';
+				$article['edited'] = $article['title'] !== $default['title']
+					|| $article['keywords'] !== $default['keywords']
+					|| $article['tags'] !== $default['tags']
+					|| $article['steps'] !== $default['steps'];
+
+				return $article;
+			}
+
+			$article['source'] = 'manual';
+		}
+
 		$article['edited'] = $article['edited'] ?? false;
 
 		return $article;
+	}
+
+	/**
+	 * Find a built-in default article definition by id.
+	 *
+	 * @param string $id Article id.
+	 * @return array<string,mixed>|null
+	 */
+	private static function find_default( string $id ): ?array {
+		foreach ( self::defaults() as $default ) {
+			if ( $default['id'] === $id ) {
+				return $default;
+			}
+		}
+
+		return null;
 	}
 
 	/**
