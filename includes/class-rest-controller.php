@@ -1,8 +1,9 @@
 <?php
 /**
- * REST API - single stateless "ask" endpoint. Nothing is persisted: each
- * request is scored against the KnowledgeBase and the answer is returned
- * directly, no conversation/history table exists in this plugin by design.
+ * REST API - single stateless "ask" endpoint. The question and answer
+ * themselves are never persisted — no conversation/history table exists
+ * in this plugin by design. The only thing recorded is an anonymous tally
+ * (see Stats): which article answered, or that nothing did.
  *
  * @package Fanaloka\SelfHelp
  */
@@ -11,6 +12,7 @@ namespace Fanaloka\SelfHelp\REST;
 
 use Fanaloka\SelfHelp\Detector;
 use Fanaloka\SelfHelp\Matcher;
+use Fanaloka\SelfHelp\Stats;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -98,6 +100,12 @@ class RESTController {
 
 		$matcher = new Matcher();
 		$result  = $matcher->find( $question, $snapshot['tags'] );
+
+		if ( $result['matched'] ) {
+			Stats::record_match( $result['article']['id'] );
+		} else {
+			Stats::record_unanswered();
+		}
 
 		return new \WP_REST_Response( $this->format_result( $result ), 200 );
 	}

@@ -48,3 +48,16 @@
 	margin-top: 12px;
 	margin-bottom: 0;
 }
+
+.fsh-stats-summary {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 4px 12px;
+	margin-bottom: 12px;
+	font-size: 13px;
+}
+
+.fsh-stats-summary a {
+	margin-left: 8px;
+}

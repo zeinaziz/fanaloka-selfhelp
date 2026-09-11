@@ -10,6 +10,7 @@ namespace Fanaloka\SelfHelp\Admin;
 
 use Fanaloka\SelfHelp\KnowledgeBase;
 use Fanaloka\SelfHelp\SiteIndexer;
+use Fanaloka\SelfHelp\Stats;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -60,6 +61,13 @@ class KBPage {
 					remove_query_arg( array( 'action', '_wpnonce' ) )
 				)
 			);
+			exit;
+		}
+
+		if ( isset( $_GET['action'] ) && 'reset_stats' === $_GET['action'] ) {
+			check_admin_referer( 'fsh_kb_reset_stats' );
+			Stats::reset();
+			wp_safe_redirect( remove_query_arg( array( 'action', '_wpnonce' ) ) );
 			exit;
 		}
 	}
@@ -207,6 +215,8 @@ class KBPage {
 			<?php esc_html_e( 'Index memindai plugin aktif dan tipe konten khusus di website ini, lalu menyesuaikan daftar panduan: menghapus panduan plugin yang tidak terpasang dan menambahkan panduan untuk konten yang memang ada. Panduan yang sudah kamu edit sendiri tidak akan diutak-atik.', 'fanaloka-selfhelp' ); ?>
 		</p>
 
+		<?php $this->render_stats_summary(); ?>
+
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
@@ -214,12 +224,13 @@ class KBPage {
 					<th><?php esc_html_e( 'Kata Kunci', 'fanaloka-selfhelp' ); ?></th>
 					<th><?php esc_html_e( 'Tag', 'fanaloka-selfhelp' ); ?></th>
 					<th style="width:110px;"><?php esc_html_e( 'Sumber', 'fanaloka-selfhelp' ); ?></th>
+					<th style="width:80px;"><?php esc_html_e( 'Ditanya', 'fanaloka-selfhelp' ); ?></th>
 					<th style="width:140px;"><?php esc_html_e( 'Aksi', 'fanaloka-selfhelp' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php if ( empty( $articles ) ) : ?>
-					<tr><td colspan="5"><?php esc_html_e( 'Belum ada panduan.', 'fanaloka-selfhelp' ); ?></td></tr>
+					<tr><td colspan="6"><?php esc_html_e( 'Belum ada panduan.', 'fanaloka-selfhelp' ); ?></td></tr>
 				<?php endif; ?>
 				<?php foreach ( $articles as $article ) : ?>
 					<?php
@@ -237,6 +248,7 @@ class KBPage {
 								<span class="fsh-badge fsh-badge-warn" title="<?php esc_attr_e( 'Sudah kamu edit, jadi dilindungi dari Index Website', 'fanaloka-selfhelp' ); ?>">✎</span>
 							<?php endif; ?>
 						</td>
+						<td><?php echo esc_html( (string) Stats::matched_count( $article['id'] ) ); ?>×</td>
 						<td>
 							<a href="<?php echo esc_url( $edit_url ); ?>"><?php esc_html_e( 'Edit', 'fanaloka-selfhelp' ); ?></a>
 							|
@@ -247,7 +259,7 @@ class KBPage {
 			</tbody>
 		</table>
 		<script>
-		document.querySelectorAll( '.fsh-delete-link, .fsh-index-link' ).forEach( function ( link ) {
+		document.querySelectorAll( '.fsh-delete-link, .fsh-index-link, .fsh-reset-stats-link' ).forEach( function ( link ) {
 			link.addEventListener( 'click', function ( e ) {
 				if ( ! window.confirm( link.getAttribute( 'data-confirm' ) ) ) {
 					e.preventDefault();
@@ -255,6 +267,33 @@ class KBPage {
 			} );
 		} );
 		</script>
+		<?php
+	}
+
+	/**
+	 * Render the anonymous usage summary: how many questions went
+	 * unanswered, plus a link to clear the counters.
+	 *
+	 * @return void
+	 */
+	private function render_stats_summary(): void {
+		$unanswered = Stats::unanswered_count();
+		$reset_url  = wp_nonce_url( add_query_arg( array( 'action' => 'reset_stats' ) ), 'fsh_kb_reset_stats' );
+		?>
+		<div class="fsh-stats-summary">
+			<p>
+				<?php
+				printf(
+					/* translators: %d: number of unanswered questions */
+					esc_html__( 'Pertanyaan yang belum terjawab sejauh ini: %d. Angka ini cuma hitungan, isi pertanyaannya sendiri tidak pernah disimpan.', 'fanaloka-selfhelp' ),
+					(int) $unanswered
+				);
+				?>
+				<a href="<?php echo esc_url( $reset_url ); ?>" class="fsh-reset-stats-link" data-confirm="<?php esc_attr_e( 'Reset semua statistik (jumlah ditanya + belum terjawab)?', 'fanaloka-selfhelp' ); ?>">
+					<?php esc_html_e( 'Reset statistik', 'fanaloka-selfhelp' ); ?>
+				</a>
+			</p>
+		</div>
 		<?php
 	}
 
